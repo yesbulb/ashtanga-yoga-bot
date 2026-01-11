@@ -1,0 +1,24 @@
+# secrets
+.env
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.sqlite3
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# venv
+venv/
+.venv/
+
+# ide
+.vscode/
+
+# os
+.DS_Store
+Thumbs.db
