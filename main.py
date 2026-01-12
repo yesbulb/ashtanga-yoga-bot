@@ -5,22 +5,26 @@ import httpx
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    Application, CommandHandler, CallbackQueryHandler, 
+    Application, CommandHandler, CallbackQueryHandler,
     MessageHandler, ConversationHandler, ContextTypes, filters
 )
 
 # --- ИНИЦИАЛИЗАЦИЯ ---
 load_dotenv()
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 
-SERIES_LIMITS = {1: 42, 2: 27}
+SERIES_LIMITS = {1: 42, 2: 27, 3: 25}
 SERIES_IMAGES = {
     1: "https://zhsqobhlvtarkksnwsfy.supabase.co/storage/v1/object/public/Other/Primary.png",
     2: "https://zhsqobhlvtarkksnwsfy.supabase.co/storage/v1/object/public/Other/Intermediate.png",
+    3: "https://zhsqobhlvtarkksnwsfy.supabase.co/storage/v1/object/public/Other/Advanced.png",
     'mix': "https://zhsqobhlvtarkksnwsfy.supabase.co/storage/v1/object/public/Other/Primary.png"
 }
 
@@ -48,23 +52,27 @@ async def get_asana_by_id(aid: int):
         return data[0] if data else None
 
 # --- ШАВАСАНА ---
+
+
 async def send_shavasana(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    
+
     img_id = random.randint(1, 11)
     img_url = f"https://zhsqobhlvtarkksnwsfy.supabase.co/storage/v1/object/public/Wishes/{img_id}.png"
-    
+
     await query.message.reply_photo(
         photo=img_url,
         caption="✨ Твое пожелание на сегодня. Намасте! 🙏"
     )
-    
+
     uid = update.effective_user.id
     user_data.pop(uid, None)
     test_data.pop(uid, None)
-    
+
     return await start(update, context)
+
+
 
 # --- ГЛАВНОЕ МЕНЮ ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -74,11 +82,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("☕️ Поддержать проект", callback_data='menu_donate')]
     ]
     txt = '🙏 Добро пожаловать в бот для изучения асан Аштанга Йоги!\nВыберите режим:'
-    
+
     uid = update.effective_user.id
     user_data.pop(uid, None)
     test_data.pop(uid, None)
-    
+
     if update.message:
         await update.message.reply_text(txt, reply_markup=InlineKeyboardMarkup(kb))
     else:
@@ -96,11 +104,12 @@ async def to_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    
+
     if query.data == 'menu_learn':
         kb = [
             [InlineKeyboardButton("Первая серия", callback_data='select_series_1')],
             [InlineKeyboardButton("Вторая серия", callback_data='select_series_2')],
+            [InlineKeyboardButton("Третья серия", callback_data='select_series_3')],
             [InlineKeyboardButton("◀️ Назад", callback_data='to_start')]
         ]
         await query.edit_message_text('🧘 Выберите серию для изучения:', reply_markup=InlineKeyboardMarkup(kb))
@@ -116,39 +125,44 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Ботик сможет стать лучше, как и вы 💙*\n\n"
             "_Продолжайте практиковать! And all, как мы знаем, is coming 🙌🏽_"
         )
-        
+
         kb = [
             [InlineKeyboardButton("🔥 Добаввить тапаса (CloudTips)", url="https://pay.cloudtips.ru/p/6b21b46b")],
             [InlineKeyboardButton("◀️ В меню", callback_data='to_start')]
         ]
-        
+
         # Добавлен parse_mode='Markdown' для работы жирного шрифта и курсива
         await query.edit_message_text(
-            text=donate_text, 
+            text=donate_text,
             reply_markup=InlineKeyboardMarkup(kb),
             parse_mode='Markdown'
         )
-    
+
     elif query.data.startswith('select_series_'):
         series = int(query.data.split('_')[-1])
         context.user_data['series'] = series
         await query.message.delete()
-        
+
         kb = [
             [InlineKeyboardButton("📖 Учить по порядку", callback_data=f'set_l_{series}')],
             [InlineKeyboardButton("👀 Посмотреть асаны", callback_data=f'view_all_{series}_0')],
             [InlineKeyboardButton("◀️ Назад", callback_data='menu_learn')]
         ]
+        caption = (
+            f"{'Первая' if series==1 else 'Вторая' if series==2 else 'Третья'} серия. "
+            "Хотите следовать по серии или выбрать асаны из списка?"
+        )
         await query.message.reply_photo(
-            photo=SERIES_IMAGES[series], 
-            caption=f"{'Первая' if series==1 else 'Вторая'} серия. Хотите следовать по серии или выбрать асаны из списка?", 
+            photo=SERIES_IMAGES[series],
+            caption=caption,
             reply_markup=InlineKeyboardMarkup(kb)
         )
 
     elif query.data == 'menu_test':
         kb = [
-            [InlineKeyboardButton("1 серия", callback_data='pretest_1')],
-            [InlineKeyboardButton("2 серия", callback_data='pretest_2')],
+            [InlineKeyboardButton("Первая серия", callback_data='pretest_1')],
+            [InlineKeyboardButton("Вторая серия", callback_data='pretest_2')],
+            [InlineKeyboardButton("Третья серия", callback_data='pretest_3')],
             [InlineKeyboardButton("Микс", callback_data='pretest_mix')],
             [InlineKeyboardButton("◀️ Назад", callback_data='to_start')]
         ]
@@ -212,14 +226,14 @@ async def finish_test(msg, uid):
     if not data['errors']:
         video = "https://zhsqobhlvtarkksnwsfy.supabase.co/storage/v1/object/public/Other/IMG_4867.MP4"
         await msg.reply_video(video=video, caption="🎉 Безупречно! Теперь вы еще на один шаг ближе к самадхи!")
-        kb = [[InlineKeyboardButton("🔄 Еще раз", callback_data='menu_test')], 
+        kb = [[InlineKeyboardButton("🔄 Еще раз", callback_data='menu_test')],
               [InlineKeyboardButton("🏠 Меню", callback_data='to_start')],
               [InlineKeyboardButton("🧘 Шавасана", callback_data='shavasana')]]
     else:
         txt = f"🏁 Тест окончен!\n📊 Ваш счёт: {data['score']} из {len(data['questions'])}"
         await msg.reply_text(txt)
-        kb = [[InlineKeyboardButton("🌱 Точки роста", callback_data='growth')], 
-              [InlineKeyboardButton("🔄 Еще раз", callback_data='menu_test')], 
+        kb = [[InlineKeyboardButton("🌱 Точки роста", callback_data='growth')],
+              [InlineKeyboardButton("🔄 Еще раз", callback_data='menu_test')],
               [InlineKeyboardButton("🏠 Меню", callback_data='to_start')],
               [InlineKeyboardButton("🧘 Шавасана", callback_data='shavasana')]]
     await msg.reply_text("Что делаем дальше?", reply_markup=InlineKeyboardMarkup(kb))
@@ -280,7 +294,7 @@ async def nav_learn(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = query.from_user.id
     if query.data == 'next': user_data[uid]['idx'] += 1
     elif query.data == 'prev': user_data[uid]['idx'] = max(0, user_data[uid]['idx'] - 1)
-    
+
     if user_data[uid]['idx'] >= len(user_data[uid]['list']):
         await query.message.reply_text("🎉 Все асаны изучены!", reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("🏠 Меню", callback_data='to_start')],
@@ -323,13 +337,13 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     app.add_error_handler(error_handler)
-    
+
     app.add_handler(ConversationHandler(
         entry_points=[CallbackQueryHandler(start_learn, pattern='^set_l_')],
         states={
-            ASK_START: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_start_num), 
+            ASK_START: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_start_num),
                         CallbackQueryHandler(to_start_callback, pattern='^to_start$')],
-            ASK_END: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_end_num), 
+            ASK_END: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_end_num),
                       CallbackQueryHandler(to_start_callback, pattern='^to_start$')]
         },
         fallbacks=[CallbackQueryHandler(to_start_callback, pattern='^to_start$')],
@@ -348,7 +362,7 @@ def main():
     app.add_handler(CallbackQueryHandler(nav_learn, pattern='^(next|prev)$'))
     app.add_handler(CallbackQueryHandler(view_all, pattern='^view_all_'))
     app.add_handler(CallbackQueryHandler(show_info, pattern='^info_'))
-    
+
     print("🤖 Бот запущен и готов к работе!")
     app.run_polling(drop_pending_updates=True)
 
