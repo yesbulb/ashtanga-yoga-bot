@@ -1,19 +1,9 @@
-app = 'asana-bot-quiet-cloud-1759'
-primary_region = 'arn'
-
-[build]
-
-
-[[vm]]
-  memory = '1gb'
-  cpu_kind = 'shared'
-  cpus = 1
-app = 'asana-bot-quiet-cloud-1759'
-primary_region = 'arn'
+app = "asana-bot-quiet-cloud-1759"
+primary_region = "arn"
 
 [build]
 
 [[vm]]
-  memory = '1gb'
-  cpu_kind = 'shared'
+  memory = "1gb"
+  cpu_kind = "shared"
   cpus = 1
