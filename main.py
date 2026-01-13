@@ -24,7 +24,7 @@ SERIES_LIMITS = {1: 42, 2: 27, 3: 25}
 SERIES_IMAGES = {
     1: "https://zhsqobhlvtarkksnwsfy.supabase.co/storage/v1/object/public/Other/Primary.png",
     2: "https://zhsqobhlvtarkksnwsfy.supabase.co/storage/v1/object/public/Other/Intermediate.png",
-    3: "https://zhsqobhlvtarkksnwsfy.supabase.co/storage/v1/object/public/Other/Advanced.png",
+    3: "https://zhsqobhlvtarkksnwsfy.supabase.co/storage/v1/object/public/Other/Advanced2.png",
     'mix': "https://zhsqobhlvtarkksnwsfy.supabase.co/storage/v1/object/public/Other/Primary.png"
 }
 
@@ -285,7 +285,13 @@ async def show_asana(msg, uid):
     a = d['list'][d['idx']]
     kb = [[InlineKeyboardButton("◀️", callback_data='prev'), InlineKeyboardButton(f"{d['idx']+1}/{len(d['list'])}", callback_data='none'), InlineKeyboardButton("▶️", callback_data='next')],
           [InlineKeyboardButton("🏠 Меню", callback_data='to_start')]]
-    cap = f"🧘 *{a['name']}*\n\n_{a.get('transcription', '')}_\n\n{a.get('meaning', '')}"
+    cap = f"🧘 *{a['name']}*"
+    transcription = a.get('transcription') or ''
+    if transcription:
+        cap += f"\n\n_{transcription}_"
+    meaning = a.get('meaning') or ''
+    if meaning:
+        cap += f"\n\n{meaning}"
     await msg.reply_photo(a['image_url'], caption=cap, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(kb))
 
 async def nav_learn(update: Update, context: ContextTypes.DEFAULT_TYPE):
