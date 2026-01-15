@@ -51,6 +51,43 @@ async def get_asana_by_id(aid: int):
         data = r.json()
         return data[0] if data else None
 
+async def upsert_user(chat_id: int):
+    url = f"{SUPABASE_URL}/rest/v1/users"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json"
+    }
+    # Try to update first (if user exists)
+    update_url = f"{url}?chat_id=eq.{chat_id}"
+    update_data = {"latest_interaction": "now()"}
+    async with httpx.AsyncClient() as client:
+        r = await client.patch(update_url, headers=headers, json=update_data)
+        if r.status_code == 200 and r.json():  # Updated successfully
+            return chat_id
+        else:
+            # Insert new user
+            data = {"chat_id": chat_id, "latest_interaction": "now()"}
+            r2 = await client.post(url, headers=headers, json=data)
+            if r2.status_code == 201:
+                return chat_id
+            elif r2.status_code == 409:  # Conflict, user exists
+                return chat_id  # Assume it exists
+    return None
+
+async def log_interaction(user_id: int, interaction_type: str, num_asanas: int):
+    print(f"Logging interaction: user_id={user_id}, type={interaction_type}, num_asanas={num_asanas}")
+    url = f"{SUPABASE_URL}/rest/v1/interactions"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json"
+    }
+    data = {"user_id": user_id, "type": interaction_type, "number_of_asanas": num_asanas}
+    async with httpx.AsyncClient() as client:
+        r = await client.post(url, headers=headers, json=data)
+        print(f"Log interaction response: {r.status_code}")
+
 # --- ШАВАСАНА ---
 
 
@@ -84,6 +121,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     txt = '🙏 Добро пожаловать в бот для изучения асан Аштанга Йоги!\nВыберите режим:'
 
     uid = update.effective_user.id
+    await upsert_user(uid)
     user_data.pop(uid, None)
     test_data.pop(uid, None)
 
@@ -98,8 +136,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def to_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.answer()
-    return await start(update, context)
+    query = update.callback_query
+    await query.answer()
+    kb = [
+        [InlineKeyboardButton("🧘 Учить асаны", callback_data='menu_learn')],
+        [InlineKeyboardButton("💪 Проверить мастерство", callback_data='menu_test')],
+        [InlineKeyboardButton("☕️ Поддержать проект", callback_data='menu_donate')]
+    ]
+    txt = '🙏 Добро пожаловать в бот для изучения асан Аштанга Йоги!\nВыберите режим:'
+    await query.message.delete()
+    await context.bot.send_message(chat_id=query.message.chat_id, text=txt, reply_markup=InlineKeyboardMarkup(kb))
+    return ConversationHandler.END
 
 async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -112,7 +159,8 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("Третья серия", callback_data='select_series_3')],
             [InlineKeyboardButton("◀️ Назад", callback_data='to_start')]
         ]
-        await query.edit_message_text('🧘 Выберите серию для изучения:', reply_markup=InlineKeyboardMarkup(kb))
+        await query.message.delete()
+        await context.bot.send_message(chat_id=query.message.chat_id, text='🧘 Выберите серию для изучения:', reply_markup=InlineKeyboardMarkup(kb))
 
     elif query.data == 'menu_donate':
         # Ваш текст с форматированием
@@ -131,8 +179,9 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("◀️ В меню", callback_data='to_start')]
         ]
 
-        # Добавлен parse_mode='Markdown' для работы жирного шрифта и курсива
-        await query.edit_message_text(
+        await query.message.delete()
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
             text=donate_text,
             reply_markup=InlineKeyboardMarkup(kb),
             parse_mode='Markdown'
@@ -166,12 +215,16 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("Микс", callback_data='pretest_mix')],
             [InlineKeyboardButton("◀️ Назад", callback_data='to_start')]
         ]
-        await query.edit_message_text('💪 Выберите серию для теста:', reply_markup=InlineKeyboardMarkup(kb))
+        await query.message.delete()
+        await context.bot.send_message(chat_id=query.message.chat_id, text='💪 Выберите серию для теста:', reply_markup=InlineKeyboardMarkup(kb))
 
 # --- ЛОГИКА ТЕСТА ---
 async def pre_test_screen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    uid = query.from_user.id
+    user_id = await upsert_user(uid)
+    await log_interaction(user_id, 'test', 10)
     series_type = query.data.split('_')[-1]
     img_key = int(series_type) if series_type.isdigit() else 'mix'
     kb = [[InlineKeyboardButton("🚀 Вперед!", callback_data=f"start_test_{series_type}")],
@@ -213,7 +266,8 @@ async def check_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _, correct_id, chosen_id = query.data.split('_')
     if correct_id == chosen_id:
         if int(correct_id) not in data['errors']: data['score'] += 1
-        await query.edit_message_caption("Верно! ✅")
+        a = await get_asana_by_id(int(correct_id))
+        await query.edit_message_caption(f"Верно! ✅\n\n{a['name']}")
         data['index'] += 1
         await send_q(query.message, uid)
     else:
@@ -252,6 +306,9 @@ async def handle_growth(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def start_learn(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    uid = query.from_user.id
+    user_id = await upsert_user(uid)
+    context.user_data['user_id'] = user_id
     series = int(query.data.split('_')[-1])
     context.user_data['series'] = series
     try:
@@ -277,6 +334,9 @@ async def get_end_num(update: Update, context: ContextTypes.DEFAULT_TYPE):
     asanas = await fetch_asanas(context.user_data['series'])
     filtered = [a for a in asanas if s <= a['order_num'] <= e]
     user_data[update.effective_user.id] = {'list': filtered, 'idx': 0}
+    user_id = context.user_data.get('user_id')
+    if user_id:
+        await log_interaction(user_id, 'learn', len(filtered))
     await show_asana(update.message, update.effective_user.id)
     return ConversationHandler.END
 
