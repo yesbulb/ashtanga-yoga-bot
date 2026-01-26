@@ -19,6 +19,8 @@ logging.basicConfig(
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+WEBHOOK_PATH = "/webhook"
 
 SERIES_LIMITS = {1: 42, 2: 27, 3: 25}
 SERIES_IMAGES = {
@@ -407,10 +409,14 @@ def main():
     app.add_handler(ConversationHandler(
         entry_points=[CallbackQueryHandler(start_learn, pattern='^set_l_')],
         states={
-            ASK_START: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_start_num),
-                        CallbackQueryHandler(to_start_callback, pattern='^to_start$')],
-            ASK_END: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_end_num),
-                      CallbackQueryHandler(to_start_callback, pattern='^to_start$')]
+            ASK_START: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, get_start_num),
+                CallbackQueryHandler(to_start_callback, pattern='^to_start$')
+            ],
+            ASK_END: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, get_end_num),
+                CallbackQueryHandler(to_start_callback, pattern='^to_start$')
+            ]
         },
         fallbacks=[CallbackQueryHandler(to_start_callback, pattern='^to_start$')],
         per_message=False,
@@ -429,8 +435,20 @@ def main():
     app.add_handler(CallbackQueryHandler(view_all, pattern='^view_all_'))
     app.add_handler(CallbackQueryHandler(show_info, pattern='^info_'))
 
-    print("🤖 Бот запущен и готов к работе!")
-    app.run_polling(drop_pending_updates=True)
+    print("🤖 бот запущен и готов к работе!")
+    print("WEBHOOK_URL =", WEBHOOK_URL)
 
-if __name__ == '__main__':
+    if WEBHOOK_URL:
+        print("starting webhook")
+        app.run_webhook(
+            listen="0.0.0.0",
+            port=8080,
+            url_path=WEBHOOK_PATH,
+            webhook_url=WEBHOOK_URL + WEBHOOK_PATH,
+        )
+    else:
+        app.run_polling(drop_pending_updates=True)
+
+
+if __name__ == "__main__":
     main()
